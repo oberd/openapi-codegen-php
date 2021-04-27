@@ -3,7 +3,7 @@ set -e
 
 argv0=$(echo "$0" | sed -e 's,\\,/,g')
 generatordir=$(dirname "$(readlink "$0" || echo "$argv0")")
-
+out_dir=$1
 use_winpty=0
 
 case "$(uname -s)" in
@@ -17,14 +17,20 @@ generatordir=$(cd $(dirname $argv0) > /dev/null && cd $generatordir > /dev/null 
 generaroimage=elastic/elastic-openapi-codegen-php
 rootdir=`cd $(dirname $argv0)/../..; pwd`
 fixerimage="herloct/php-cs-fixer"
+
+# This parameter is to customize the output directory of the build script
+if [ -z "$out_dir" ]; then
+  out_dir=$rootdir
+fi
+
 echo $rootdir
 
 cd ${generatordir} && docker build --target runner -t ${generaroimage} elastic-openapi-codegen-php
 
-docker run --rm -v ${rootdir}:/local ${generaroimage} generate -g elastic-php-client \
+docker run --rm -v ${rootdir}:/local -v ${out_dir}:/out ${generaroimage} generate -g elastic-php-client \
                                                                -i /local/resources/api/api-spec.yml \
-                                                               -o /local/ \
+                                                               -o /out \
                                                                -c /local/resources/api/config.json \
                                                                -t /local/resources/api/templates
 
-docker run --rm -v ${rootdir}:/project ${fixerimage} fix --config=.php_cs.dist
+docker run --rm -v ${rootdir}:/project -v ${out_dir}:/src --workdir=/project ${fixerimage} fix --config=.php_cs.dist /src
